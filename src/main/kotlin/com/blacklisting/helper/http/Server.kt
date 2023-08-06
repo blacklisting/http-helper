@@ -15,6 +15,12 @@ object Server
     {
         HttpServer.create(InetSocketAddress("BL".chars().reduce { left, right -> left * 0x100 + right }.asInt), 0).apply {
             println(this.address.port)
+            createContext("/page") {
+                println("${LocalDateTime.now()} /page ${it.remoteAddress}")
+                it.sendResponseHeaders(200, 0)
+                Thread.currentThread().contextClassLoader.resources("web.html").findFirst().get().openStream().transferTo(it.responseBody)
+                it.close()
+            }
             createContext("/add") {
                 val url = it.requestURI
                 val queryDomain = url.path.split("/")[2]
@@ -54,6 +60,7 @@ object Server
                             }
                     )
                 }
+                it.responseHeaders.add("Content-Type", "text/plain")
                 it.sendResponseHeaders(200, 0)
                 it.responseBody.write("${LocalDateTime.now()} Write OK\n".encodeToByteArray())
                 Runtime.getRuntime().exec(arrayOf("git", "add", "$key.csv"), emptyArray(), File(domain.folderName)).apply {
@@ -108,11 +115,12 @@ object Server
             }
             createContext("/list") {
                 val url = it.requestURI
-                val query = url.path.split("/").getOrElse(2) { "domains" }
-                when (query)
+                val query = url.path.split("/")
+                when (query.getOrElse(2) { "domains" })
                 {
                     "domains" ->
                     {
+                        it.responseHeaders.add("Content-Type", "text/plain")
                         it.sendResponseHeaders(200, 0)
                         Domain.values().map { domain ->
                             it.responseBody.write((domain.toString() + "\n").encodeToByteArray())
@@ -121,11 +129,29 @@ object Server
                     }
                     in Domain.values().map(Domain::name) ->
                     {
-                        it.sendResponseHeaders(200, 0)
-                        Domain.valueOf(query).rowDefs.map { rowDef ->
-                            it.responseBody.write((rowDef.fieldName + "\n").encodeToByteArray())
+                        when (query.getOrElse(3) { "fields" })
+                        {
+                            "fields" ->
+                            {
+                                it.responseHeaders.add("Content-Type", "text/plain")
+                                it.sendResponseHeaders(200, 0)
+                                Domain.valueOf(query[2]).rowDefs.map { rowDef ->
+                                    it.responseBody.write((rowDef.fieldName + ": " + rowDef.representName + "\n").encodeToByteArray())
+                                }
+                                it.close()
+                            }
+                            "blacklists" ->
+                            {
+                                it.responseHeaders.add("Content-Type", "text/plain")
+                                it.sendResponseHeaders(200, 0)
+                                File("./${Domain.valueOf(query[2]).folderName}/").listFiles()?.filterNot { file ->
+                                    file.nameWithoutExtension.isBlank()
+                                }?.map { file ->
+                                    it.responseBody.write((file.nameWithoutExtension + "\n").toByteArray(Charsets.UTF_8))
+                                }
+                                it.close()
+                            }
                         }
-                        it.close()
                     }
                 }
             }
