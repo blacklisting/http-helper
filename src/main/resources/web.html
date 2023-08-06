@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>BlackListing</title>
+    <script type="application/javascript">
+        function removeAllChildOf(node) {
+            while (node.hasChildNodes()) {
+                node.childNodes.item(0).remove();
+            }
+        }
+
+        function onload() {
+            const domainSelect = document.getElementById("domains");
+            const file = document.getElementById("file");
+            const form = document.getElementById("fields");
+            const listAllDomains = new XMLHttpRequest();
+            listAllDomains.open("GET", "/list");
+            listAllDomains.send();
+            listAllDomains.onreadystatechange = () => {
+                if (listAllDomains.readyState === XMLHttpRequest.DONE) {
+                    removeAllChildOf(domainSelect);
+                    domainSelect.onchange = function () {
+                        removeAllChildOf(form);
+                        removeAllChildOf(file);
+                        const listFiles = new XMLHttpRequest();
+                        listFiles.open("GET", "/list/" + domainSelect[domainSelect.selectedIndex].innerText + "/blacklists");
+                        listFiles.send();
+                        listFiles.onreadystatechange = () => {
+                            if (listFiles.readyState === XMLHttpRequest.DONE) {
+                                listFiles.responseText.split("\n")
+                                    .filter(filename => filename !== "")
+                                    .forEach(filename => {
+                                        const fileOption = document.createElement("option");
+                                        fileOption.innerText = filename;
+                                        file.appendChild(fileOption);
+                                    });
+                            }
+                        }
+
+                        file.onchange = function () {
+                            form.action = "/add/" + domainSelect[domainSelect.selectedIndex].innerText + "/" + file[file.selectedIndex].innerText;
+                        }
+
+                        const listSingleDomain = new XMLHttpRequest();
+                        listSingleDomain.open("GET", "/list/" + domainSelect[domainSelect.selectedIndex].innerText);
+                        listSingleDomain.send();
+                        listSingleDomain.onreadystatechange = () => {
+                            if (listSingleDomain.readyState === XMLHttpRequest.DONE) {
+                                listSingleDomain.responseText.split("\n")
+                                    .filter(prop => prop !== "")
+                                    .forEach(prop => {
+                                        const kvp = prop.split(": ");
+                                        const field = kvp[0];
+                                        const description = kvp[1];
+
+                                        const propItem = document.createElement("div");
+                                        const propName = document.createElement("label");
+                                        propName.innerText = description;
+                                        propItem.appendChild(propName);
+                                        const propInput = document.createElement("input");
+                                        propInput.name = field;
+                                        propItem.appendChild(propInput);
+                                        form.appendChild(propItem);
+                                    });
+                            }
+                        }
+                        const propSubmit = document.createElement("input");
+                        propSubmit.type = "submit";
+                        form.appendChild(propSubmit);
+                    }
+                    listAllDomains.responseText.split("\n")
+                        .filter(domain => domain !== "")
+                        .forEach(domain => {
+                            const domainItem = document.createElement("option");
+                            domainItem.innerText = domain;
+                            domainSelect.appendChild(domainItem);
+                        });
+                }
+            }
+        }
+    </script>
+</head>
+<body onload="onload()">
+<label for="domains">Domain:</label><select id="domains"></select>
+<label for="file">File:</label><select id="file"></select>
+<form id="fields"></form>
+</body>
+</html>
