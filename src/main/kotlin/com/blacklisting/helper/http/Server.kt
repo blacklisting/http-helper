@@ -3,9 +3,12 @@ package com.blacklisting.helper.http
 import com.blacklisting.lib.BlacklistIO
 import com.blacklisting.lib.Cell
 import com.blacklisting.lib.Domain
+import com.blacklisting.lib.RowDef
+import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import java.io.File
 import java.net.InetSocketAddress
+import java.net.URLDecoder
 import java.time.LocalDateTime
 
 object Server
@@ -54,7 +57,7 @@ object Server
                             .apply read@ {
                                 add(
                                     this@blacklistIO.domain.rowDefs.map { rowDef ->
-                                        Cell(rowDef, query[rowDef.fieldName] ?: "")
+                                        Cell(rowDef, URLDecoder.decode(query[rowDef.fieldName], Charsets.UTF_8).replace("\n", "\\n") ?: "")
                                     }.toMutableList()
                                 )
                             }
@@ -63,54 +66,9 @@ object Server
                 it.responseHeaders.add("Content-Type", "text/plain")
                 it.sendResponseHeaders(200, 0)
                 it.responseBody.write("${LocalDateTime.now()} Write OK\n".encodeToByteArray())
-                Runtime.getRuntime().exec(arrayOf("git", "add", "$key.csv"), emptyArray(), File(domain.folderName)).apply {
-                    waitFor()
-                    if (exitValue() == 0)
-                    {
-                        it.responseBody.write("${LocalDateTime.now()} Git add OK\n".encodeToByteArray())
-                    }
-                    else
-                    {
-                        it.responseBody.write("${LocalDateTime.now()} Git add error\n".encodeToByteArray())
-                        it.responseBody.write(errorStream.readBytes())
-                        it.responseBody.write("\n".encodeToByteArray())
-                        it.responseBody.write(inputStream.readBytes())
-                        it.responseBody.write("\n".encodeToByteArray())
-                        it.close()
-                    }
-                }
-                Runtime.getRuntime().exec(arrayOf("git", "commit", "--no-gpg-sign", "-m", "Update with a comment just seen."), emptyArray(), File(domain.folderName)).apply {
-                    waitFor()
-                    if (exitValue() == 0)
-                    {
-                        it.responseBody.write("${LocalDateTime.now()} Git commit OK\n".encodeToByteArray())
-                    }
-                    else
-                    {
-                        it.responseBody.write("${LocalDateTime.now()} Git commit error\n".encodeToByteArray())
-                        it.responseBody.write(errorStream.readBytes())
-                        it.responseBody.write("\n".encodeToByteArray())
-                        it.responseBody.write(inputStream.readBytes())
-                        it.responseBody.write("\n".encodeToByteArray())
-                        it.close()
-                    }
-                }
-                Runtime.getRuntime().exec(arrayOf("git", "push"), emptyArray(), File(domain.folderName)).apply {
-                    waitFor()
-                    if (exitValue() == 0)
-                    {
-                        it.responseBody.write("${LocalDateTime.now()} Git push OK\n".encodeToByteArray())
-                    }
-                    else
-                    {
-                        it.responseBody.write("${LocalDateTime.now()} Git push error\n".encodeToByteArray())
-                        it.responseBody.write(errorStream.readBytes())
-                        it.responseBody.write("\n".encodeToByteArray())
-                        it.responseBody.write(inputStream.readBytes())
-                        it.responseBody.write("\n".encodeToByteArray())
-                        it.close()
-                    }
-                }
+                gitAdd(key, domain, it)
+                gitCommit(domain, it)
+                gitPush(domain, it)
                 it.close()
             }
             createContext("/list") {
@@ -156,6 +114,66 @@ object Server
                 }
             }
             start()
+        }
+    }
+
+    private fun gitAdd(key: String, domain: Domain, it: HttpExchange)
+    {
+        Runtime.getRuntime().exec(arrayOf("git", "add", "$key.csv"), emptyArray(), File(domain.folderName)).apply {
+            waitFor()
+            if (exitValue() == 0)
+            {
+                it.responseBody.write("${LocalDateTime.now()} Git add OK\n".encodeToByteArray())
+            }
+            else
+            {
+                it.responseBody.write("${LocalDateTime.now()} Git add error\n".encodeToByteArray())
+                it.responseBody.write(errorStream.readBytes())
+                it.responseBody.write("\n".encodeToByteArray())
+                it.responseBody.write(inputStream.readBytes())
+                it.responseBody.write("\n".encodeToByteArray())
+                it.close()
+            }
+        }
+    }
+
+    private fun gitCommit(domain: Domain, it: HttpExchange)
+    {
+        Runtime.getRuntime().exec(arrayOf("git", "commit", "--no-gpg-sign", "-m", "Update with a comment just seen."), emptyArray(), File(domain.folderName)).apply {
+            waitFor()
+            if (exitValue() == 0)
+            {
+                it.responseBody.write("${LocalDateTime.now()} Git commit OK\n".encodeToByteArray())
+            }
+            else
+            {
+                it.responseBody.write("${LocalDateTime.now()} Git commit error\n".encodeToByteArray())
+                it.responseBody.write(errorStream.readBytes())
+                it.responseBody.write("\n".encodeToByteArray())
+                it.responseBody.write(inputStream.readBytes())
+                it.responseBody.write("\n".encodeToByteArray())
+                it.close()
+            }
+        }
+    }
+
+    private fun gitPush(domain: Domain, it: HttpExchange)
+    {
+        Runtime.getRuntime().exec(arrayOf("git", "push"), emptyArray(), File(domain.folderName)).apply {
+            waitFor()
+            if (exitValue() == 0)
+            {
+                it.responseBody.write("${LocalDateTime.now()} Git push OK\n".encodeToByteArray())
+            }
+            else
+            {
+                it.responseBody.write("${LocalDateTime.now()} Git push error\n".encodeToByteArray())
+                it.responseBody.write(errorStream.readBytes())
+                it.responseBody.write("\n".encodeToByteArray())
+                it.responseBody.write(inputStream.readBytes())
+                it.responseBody.write("\n".encodeToByteArray())
+                it.close()
+            }
         }
     }
 }
