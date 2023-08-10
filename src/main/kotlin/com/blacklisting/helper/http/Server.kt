@@ -3,7 +3,6 @@ package com.blacklisting.helper.http
 import com.blacklisting.lib.BlacklistIO
 import com.blacklisting.lib.Cell
 import com.blacklisting.lib.Domain
-import com.blacklisting.lib.RowDef
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import java.io.File
@@ -61,6 +60,8 @@ object Server
                                     }.toMutableList()
                                 )
                             }
+                            .groupBy { cols -> cols[domain.sortIndex] }
+                            .map { cols -> cols.value[0] }
                     )
                 }
                 it.responseHeaders.add("Content-Type", "text/plain")
